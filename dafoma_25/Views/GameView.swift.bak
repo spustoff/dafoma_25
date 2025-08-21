@@ -1,0 +1,667 @@
+//
+//  GameView.swift
+//  SportPulse Avi
+//
+//  Created by AI Assistant on 1/20/25.
+//
+
+import SwiftUI
+
+struct GameView: View {
+    @StateObject private var gameViewModel = GameViewModel()
+    @State private var showingPauseMenu = false
+    @State private var selectedChallenge: GameChallenge?
+    
+    var body: some View {
+        ZStack {
+            // Background
+            backgroundGradient
+            
+            // Main Content
+            VStack(spacing: 0) {
+                // Header
+                gameHeader
+                
+                // Game Content
+                switch gameViewModel.gameSession.currentState {
+                case .menu:
+                    mainMenuView
+                case .playing:
+                    gameplayView
+                case .paused:
+                    pausedView
+                case .gameOver:
+                    gameOverView
+                case .scoreboard:
+                    ScoreBoardView()
+                        .environmentObject(gameViewModel)
+                case .arChallenge:
+                    ARGameView()
+                        .environmentObject(gameViewModel)
+                default:
+                    mainMenuView
+                }
+            }
+        }
+        .preferredColorScheme(.dark)
+        .alert("Game Alert", isPresented: $gameViewModel.showingAlert) {
+            Button("OK") { }
+        } message: {
+            Text(gameViewModel.errorMessage ?? "")
+        }
+        .onAppear {
+            gameViewModel.loadUserProfile()
+        }
+    }
+    
+    // MARK: - Background
+    private var backgroundGradient: some View {
+        LinearGradient(
+            colors: [
+                Color(hex: "0e0e0e"),
+                Color(hex: "1a1a1a"),
+                Color(hex: "0e0e0e")
+            ],
+            startPoint: .topLeading,
+            endPoint: .bottomTrailing
+        )
+        .ignoresSafeArea()
+    }
+    
+    // MARK: - Header
+    private var gameHeader: some View {
+        HStack {
+            // User Info
+            HStack(spacing: 12) {
+                Image(systemName: gameViewModel.userProfile.avatar)
+                    .font(.title2)
+                    .foregroundColor(Color(hex: "28a809"))
+                    .frame(width: 40, height: 40)
+                    .background(
+                        Circle()
+                            .foregroundColor(Color.gray.opacity(0.2))
+                    )
+                
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(gameViewModel.userProfile.username.isEmpty ? "Player" : gameViewModel.userProfile.username)
+                        .font(.headline)
+                        .foregroundColor(.white)
+                    
+                    Text("Level \(gameViewModel.userProfile.stats.level)")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+            }
+            
+            Spacer()
+            
+            // Score & Level
+            HStack(spacing: 16) {
+                VStack(alignment: .trailing, spacing: 2) {
+                    Text("Score")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                    
+                    Text(gameViewModel.formatScore(gameViewModel.gameSession.sessionScore))
+                        .font(.headline.bold())
+                        .foregroundColor(Color(hex: "28a809"))
+                }
+                
+                VStack(alignment: .trailing, spacing: 2) {
+                    Text("Best")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                    
+                    Text(gameViewModel.formatScore(gameViewModel.userProfile.stats.highScore))
+                        .font(.headline.bold())
+                        .foregroundColor(Color(hex: "d17305"))
+                }
+            }
+        }
+        .padding(.horizontal, 24)
+        .padding(.vertical, 16)
+        .background(
+            Rectangle()
+                .fill(Color.black.opacity(0.3))
+                .blur(radius: 20)
+        )
+    }
+    
+    // MARK: - Main Menu
+    private var mainMenuView: some View {
+        VStack(spacing: 32) {
+            Spacer()
+            
+            // App Title
+            VStack(spacing: 8) {
+                Text("SportPulse")
+                    .font(.system(size: 48, weight: .bold, design: .rounded))
+                    .foregroundColor(.white)
+                
+                Text("Avi")
+                    .font(.system(size: 32, weight: .light, design: .rounded))
+                    .foregroundColor(Color(hex: "28a809"))
+            }
+            
+            // Challenge Grid
+            LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 16), count: 2), spacing: 16) {
+                ForEach(gameViewModel.availableChallenges) { challenge in
+                    challengeCard(challenge)
+                }
+            }
+            .padding(.horizontal, 24)
+            
+            Spacer()
+            
+            // Bottom Actions
+            HStack(spacing: 16) {
+                Button {
+                    gameViewModel.gameSession.currentState = .scoreboard
+                } label: {
+                    Label("Leaderboard", systemImage: "list.number")
+                }
+                .buttonStyle(SecondaryButtonStyle())
+                
+                if gameViewModel.gameSession.isARAvailable {
+                    Button {
+                        gameViewModel.startARChallenge()
+                    } label: {
+                        Label("AR Challenge", systemImage: "arkit")
+                    }
+                    .buttonStyle(ARButtonStyle())
+                }
+            }
+            .padding(.horizontal, 24)
+            .padding(.bottom, 32)
+        }
+    }
+    
+    private func challengeCard(_ challenge: GameChallenge) -> some View {
+        Button {
+            selectedChallenge = challenge
+            gameViewModel.startChallenge(challenge)
+        } label: {
+            VStack(spacing: 16) {
+                // Challenge Icon
+                ZStack {
+                    Circle()
+                        .fill(Color(hex: "28a809").opacity(0.2))
+                        .frame(width: 80, height: 80)
+                    
+                    Image(systemName: challengeIconName(for: challenge.type))
+                        .font(.system(size: 32, weight: .medium))
+                        .foregroundColor(Color(hex: "28a809"))
+                }
+                
+                VStack(spacing: 4) {
+                    Text(challenge.type.rawValue)
+                        .font(.headline.bold())
+                        .foregroundColor(.white)
+                        .multilineTextAlignment(.center)
+                    
+                    Text(challenge.type.description)
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                        .multilineTextAlignment(.center)
+                        .lineLimit(2)
+                    
+                    // Difficulty & Points
+                    HStack(spacing: 8) {
+                        HStack(spacing: 2) {
+                            ForEach(1...5, id: \.self) { level in
+                                Image(systemName: level <= challenge.difficulty ? "star.fill" : "star")
+                                    .font(.caption)
+                                    .foregroundColor(Color(hex: "d17305"))
+                            }
+                        }
+                        
+                        Text("\(challenge.type.basePoints)pts")
+                            .font(.caption.bold())
+                            .foregroundColor(Color(hex: "28a809"))
+                    }
+                }
+            }
+            .padding(20)
+            .frame(height: 200)
+            .background(
+                RoundedRectangle(cornerRadius: 16)
+                    .foregroundColor(Color.gray.opacity(0.1))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 12)
+                            .stroke(Color(hex: "28a809").opacity(0.3), lineWidth: 1)
+                    )
+            )
+        }
+        .scaleEffect(1.0)
+        .animation(.spring(response: 0.3), value: selectedChallenge?.id == challenge.id)
+    }
+    
+    private func challengeIconName(for type: ChallengeType) -> String {
+        switch type {
+        case .timingChallenge:
+            return "timer"
+        case .strategyPuzzle:
+            return "puzzlepiece.fill"
+        case .reactionTest:
+            return "bolt.fill"
+        case .memoryGame:
+            return "brain.head.profile"
+        case .arInteraction:
+            return "arkit"
+        }
+    }
+    
+    // MARK: - Gameplay View
+    private var gameplayView: some View {
+        VStack(spacing: 0) {
+            // Game HUD
+            gameHUD
+            
+            Spacer()
+            
+            // Challenge Content
+            if let challenge = gameViewModel.gameSession.currentChallenge {
+                challengeContentView(challenge)
+            }
+            
+            Spacer()
+            
+            // Game Controls
+            gameControls
+        }
+        .padding(24)
+    }
+    
+    private var gameHUD: some View {
+        HStack {
+            // Challenge Info
+            VStack(alignment: .leading, spacing: 4) {
+                Text(gameViewModel.gameSession.currentChallenge?.type.rawValue ?? "")
+                    .font(.headline.bold())
+                    .foregroundColor(.white)
+                
+                Text("Difficulty: \(gameViewModel.gameSession.currentChallenge?.difficulty ?? 0)")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            }
+            
+            Spacer()
+            
+            // Timer
+            if gameViewModel.gameSession.timeRemaining > 0 {
+                VStack(spacing: 4) {
+                    Text("Time")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                    
+                    Text(gameViewModel.formatTime(gameViewModel.gameSession.timeRemaining))
+                        .font(.title2.bold())
+                        .foregroundColor(gameViewModel.gameSession.timeRemaining < 30 ? 
+                                       Color(hex: "e6053a") : Color(hex: "28a809"))
+                }
+            }
+            
+            // Pause Button
+            Button {
+                showingPauseMenu = true
+                gameViewModel.pauseGame()
+            } label: {
+                Image(systemName: "pause.fill")
+                    .font(.title2)
+                    .foregroundColor(.white)
+                    .frame(width: 44, height: 44)
+                    .background(
+                        Circle()
+                            .foregroundColor(Color.gray.opacity(0.3))
+                    )
+            }
+        }
+    }
+    
+    @ViewBuilder
+    private func challengeContentView(_ challenge: GameChallenge) -> some View {
+        switch challenge.type {
+        case .timingChallenge:
+            TimingChallengeView(challenge: challenge)
+                .environmentObject(gameViewModel)
+        case .strategyPuzzle:
+            StrategyPuzzleView(challenge: challenge)
+                .environmentObject(gameViewModel)
+        case .reactionTest:
+            ReactionTestView(challenge: challenge)
+                .environmentObject(gameViewModel)
+        case .memoryGame:
+            MemoryGameView(challenge: challenge)
+                .environmentObject(gameViewModel)
+        case .arInteraction:
+            ARGameView()
+                .environmentObject(gameViewModel)
+        }
+    }
+    
+    private var gameControls: some View {
+        HStack(spacing: 16) {
+            Button("End Game") {
+                gameViewModel.endCurrentSession()
+            }
+            .buttonStyle(SecondaryButtonStyle())
+            
+            Spacer()
+            
+            Button("Complete") {
+                // This would be called by the individual challenge views
+                gameViewModel.completeCurrentChallenge(withScore: 100)
+            }
+            .buttonStyle(PrimaryButtonStyle())
+        }
+    }
+    
+    // MARK: - Paused View
+    private var pausedView: some View {
+        VStack(spacing: 32) {
+            Spacer()
+            
+            VStack(spacing: 16) {
+                Image(systemName: "pause.circle.fill")
+                    .font(.system(size: 80))
+                    .foregroundColor(Color(hex: "d17305"))
+                
+                Text("Game Paused")
+                    .font(.largeTitle.bold())
+                    .foregroundColor(.white)
+                
+                Text("Take your time and resume when ready")
+                    .font(.body)
+                    .foregroundColor(.secondary)
+                    .multilineTextAlignment(.center)
+            }
+            
+            Spacer()
+            
+            VStack(spacing: 16) {
+                Button("Resume Game") {
+                    gameViewModel.resumeGame()
+                    showingPauseMenu = false
+                }
+                .buttonStyle(PrimaryButtonStyle())
+                
+                Button("End Game") {
+                    gameViewModel.endCurrentSession()
+                    showingPauseMenu = false
+                }
+                .buttonStyle(SecondaryButtonStyle())
+            }
+            .padding(.horizontal, 24)
+        }
+        .padding(24)
+    }
+    
+    // MARK: - Game Over View
+    private var gameOverView: some View {
+        VStack(spacing: 32) {
+            Spacer()
+            
+            // Results
+            VStack(spacing: 16) {
+                Image(systemName: "flag.checkered")
+                    .font(.system(size: 80))
+                    .foregroundColor(Color(hex: "28a809"))
+                
+                Text("Game Complete!")
+                    .font(.largeTitle.bold())
+                    .foregroundColor(.white)
+                
+                VStack(spacing: 8) {
+                    Text("Final Score")
+                        .font(.headline)
+                        .foregroundColor(.secondary)
+                    
+                    Text(gameViewModel.formatScore(gameViewModel.gameSession.sessionScore))
+                        .font(.system(size: 48, weight: .bold))
+                        .foregroundColor(Color(hex: "28a809"))
+                }
+                
+                // Performance Stats
+                if !gameViewModel.gameSession.challengesCompleted.isEmpty {
+                    VStack(spacing: 8) {
+                        Text("Challenges Completed: \(gameViewModel.gameSession.challengesCompleted.count)")
+                        Text("Average Score: \(Int(gameViewModel.userProfile.stats.averageScore))")
+                    }
+                    .font(.body)
+                    .foregroundColor(.secondary)
+                }
+            }
+            
+            Spacer()
+            
+            // Actions
+            VStack(spacing: 16) {
+                Button("Play Again") {
+                    gameViewModel.gameSession = GameSession()
+                    gameViewModel.gameSession.currentState = .menu
+                }
+                .buttonStyle(PrimaryButtonStyle())
+                
+                HStack(spacing: 16) {
+                    Button("View Leaderboard") {
+                        gameViewModel.gameSession.currentState = .scoreboard
+                    }
+                    .buttonStyle(SecondaryButtonStyle())
+                    
+                    Button("Share Score") {
+                        gameViewModel.shareScore()
+                    }
+                    .buttonStyle(SecondaryButtonStyle())
+                }
+            }
+            .padding(.horizontal, 24)
+        }
+        .padding(24)
+    }
+}
+
+// MARK: - Challenge Views (Placeholder implementations)
+struct TimingChallengeView: View {
+    let challenge: GameChallenge
+    @EnvironmentObject var gameViewModel: GameViewModel
+    @State private var progress: Double = 0.0
+    @State private var isActive = false
+    
+    var body: some View {
+        VStack(spacing: 32) {
+            Text("Tap when the circle is complete!")
+                .font(.title2)
+                .foregroundColor(.white)
+                .multilineTextAlignment(.center)
+            
+            ZStack {
+                Circle()
+                    .stroke(Color.gray.opacity(0.3), lineWidth: 8)
+                    .frame(width: 200, height: 200)
+                
+                Circle()
+                    .trim(from: 0.0, to: progress)
+                    .stroke(Color(hex: "28a809"), style: StrokeStyle(lineWidth: 8, lineCap: .round))
+                    .frame(width: 200, height: 200)
+                    .rotationEffect(.degrees(-90))
+                    .animation(.linear(duration: 3.0), value: progress)
+                
+                Button("TAP!") {
+                    let score = Int((1.0 - abs(progress - 1.0)) * 1000)
+                    gameViewModel.completeCurrentChallenge(withScore: score)
+                }
+                .font(.title.bold())
+                .foregroundColor(.white)
+                .frame(width: 120, height: 120)
+                .background(Circle().fill(Color(hex: "28a809")))
+            }
+            .onAppear {
+                progress = 1.0
+            }
+        }
+    }
+}
+
+struct StrategyPuzzleView: View {
+    let challenge: GameChallenge
+    @EnvironmentObject var gameViewModel: GameViewModel
+    
+    var body: some View {
+        VStack(spacing: 24) {
+            Text("Strategy Puzzle")
+                .font(.title.bold())
+                .foregroundColor(.white)
+            
+            Text("Solve the sports-themed puzzle!")
+                .font(.body)
+                .foregroundColor(.secondary)
+            
+            // Placeholder puzzle grid
+            LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: 3), spacing: 8) {
+                ForEach(0..<9) { index in
+                    Rectangle()
+                        .fill(Color(hex: "28a809").opacity(0.3))
+                        .frame(height: 60)
+                        .overlay(
+                            Text("\(index + 1)")
+                                .font(.title2.bold())
+                                .foregroundColor(.white)
+                        )
+                }
+            }
+            .padding(.horizontal, 40)
+        }
+    }
+}
+
+struct ReactionTestView: View {
+    let challenge: GameChallenge
+    @EnvironmentObject var gameViewModel: GameViewModel
+    @State private var showTarget = false
+    @State private var targetPosition = CGPoint.zero
+    
+    var body: some View {
+        VStack(spacing: 32) {
+            Text("Tap the target as fast as you can!")
+                .font(.title2)
+                .foregroundColor(.white)
+                .multilineTextAlignment(.center)
+            
+            ZStack {
+                Rectangle()
+                    .fill(Color.clear)
+                    .frame(width: 300, height: 300)
+                    .border(Color.gray.opacity(0.3), width: 2)
+                
+                if showTarget {
+                    Circle()
+                        .fill(Color(hex: "e6053a"))
+                        .frame(width: 50, height: 50)
+                        .position(targetPosition)
+                        .onTapGesture {
+                            showTarget = false
+                            gameViewModel.completeCurrentChallenge(withScore: 500)
+                        }
+                }
+            }
+            .onAppear {
+                DispatchQueue.main.asyncAfter(deadline: .now() + Double.random(in: 1...3)) {
+                    targetPosition = CGPoint(
+                        x: Double.random(in: 25...275),
+                        y: Double.random(in: 25...275)
+                    )
+                    showTarget = true
+                }
+            }
+        }
+    }
+}
+
+struct MemoryGameView: View {
+    let challenge: GameChallenge
+    @EnvironmentObject var gameViewModel: GameViewModel
+    @State private var sequence = [Int]()
+    @State private var playerSequence = [Int]()
+    @State private var showingSequence = false
+    @State private var currentIndex = 0
+    
+    var body: some View {
+        VStack(spacing: 32) {
+            Text("Remember the sequence!")
+                .font(.title2)
+                .foregroundColor(.white)
+            
+            LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: 2), spacing: 16) {
+                ForEach(0..<4) { index in
+                    Button {
+                        if !showingSequence {
+                            playerSequence.append(index)
+                            checkSequence()
+                        }
+                    } label: {
+                        Rectangle()
+                            .foregroundColor(shouldHighlight(index) ? Color(hex: "28a809") : Color.gray.opacity(0.3))
+                            .frame(height: 80)
+                            .overlay(
+                                Text("\(index + 1)")
+                                    .font(.title.bold())
+                                    .foregroundColor(.white)
+                            )
+                    }
+                }
+            }
+            .padding(.horizontal, 60)
+        }
+        .onAppear {
+            generateSequence()
+            showSequence()
+        }
+    }
+    
+    private func generateSequence() {
+        sequence = (0..<4).map { _ in Int.random(in: 0..<4) }
+    }
+    
+    private func showSequence() {
+        showingSequence = true
+        // Animation logic would go here
+        DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
+            showingSequence = false
+        }
+    }
+    
+    private func shouldHighlight(_ index: Int) -> Bool {
+        showingSequence && sequence.contains(index)
+    }
+    
+    private func checkSequence() {
+        if playerSequence == sequence {
+            gameViewModel.completeCurrentChallenge(withScore: 800)
+        }
+    }
+}
+
+// MARK: - Custom Button Styles
+struct ARButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .font(.headline.bold())
+            .foregroundColor(.white)
+            .padding(.horizontal, 24)
+            .padding(.vertical, 12)
+            .background(
+                LinearGradient(
+                    colors: [Color(hex: "e6053a"), Color(hex: "d17305")],
+                    startPoint: .leading,
+                    endPoint: .trailing
+                )
+            )
+            .clipShape(Capsule())
+            .scaleEffect(configuration.isPressed ? 0.95 : 1.0)
+            .animation(.easeInOut(duration: 0.1), value: configuration.isPressed)
+    }
+}
+
+#Preview {
+    GameView()
+}

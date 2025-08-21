@@ -1,0 +1,339 @@
+//
+//  AccessibilityHelper.swift
+//  SportPulse Avi
+//
+//  Created by AI Assistant on 1/20/25.
+//
+
+import SwiftUI
+import UIKit
+
+// MARK: - Accessibility Helper
+struct AccessibilityHelper {
+    
+    // MARK: - Dynamic Type Support
+    static func scaledFont(size: CGFloat, weight: Font.Weight = .regular, design: Font.Design = .default) -> Font {
+        return Font.system(size: size, weight: weight, design: design)
+    }
+    
+    static func scaledUIFont(size: CGFloat, weight: UIFont.Weight = .regular) -> UIFont {
+        let font = UIFont.systemFont(ofSize: size, weight: weight)
+        return UIFontMetrics.default.scaledFont(for: font)
+    }
+    
+    // MARK: - Color Contrast
+    static func contrastColor(for backgroundColor: Color) -> Color {
+        // Simple contrast calculation - in production, use more sophisticated algorithms
+        return backgroundColor == .black || backgroundColor == Color(hex: "0e0e0e") ? .white : .black
+    }
+    
+    static func highContrastColor(for baseColor: Color) -> Color {
+        if UIAccessibility.isDarkerSystemColorsEnabled {
+            // Return high contrast version
+            switch baseColor {
+            case Color(hex: "28a809"):
+                return Color(hex: "00ff00") // Brighter green
+            case Color(hex: "e6053a"):
+                return Color(hex: "ff0040") // Brighter red
+            case Color(hex: "d17305"):
+                return Color(hex: "ff8800") // Brighter orange
+            default:
+                return baseColor
+            }
+        }
+        return baseColor
+    }
+    
+    // MARK: - VoiceOver Support
+    static func gameStateAnnouncement(_ state: GameState) -> String {
+        switch state {
+        case .menu:
+            return "Main menu. Select a challenge to begin playing."
+        case .onboarding:
+            return "Welcome to SportPulse Avi. Setting up your profile."
+        case .playing:
+            return "Game in progress. Focus on the current challenge."
+        case .paused:
+            return "Game paused. Resume when ready."
+        case .gameOver:
+            return "Game completed. View your results and play again."
+        case .scoreboard:
+            return "Leaderboard view. Compare your scores with other players."
+        case .arChallenge:
+            return "Augmented reality challenge active. Move your device to interact with virtual objects."
+        }
+    }
+    
+    static func challengeDescription(_ challenge: GameChallenge) -> String {
+        let baseDescription = challenge.type.description
+        let difficulty = "Difficulty level \(challenge.difficulty) out of 10"
+        let timeLimit = challenge.timeLimit != nil ? 
+            "Time limit: \(Int(challenge.timeLimit!)) seconds" : "No time limit"
+        
+        return "\(baseDescription). \(difficulty). \(timeLimit)"
+    }
+    
+    static func scoreAnnouncement(_ score: Int, isHighScore: Bool = false) -> String {
+        let formattedScore = formatScoreForSpeech(score)
+        let announcement = "Score: \(formattedScore)"
+        
+        if isHighScore {
+            return "\(announcement). New high score!"
+        }
+        return announcement
+    }
+    
+    private static func formatScoreForSpeech(_ score: Int) -> String {
+        if score >= 1000000 {
+            let millions = Double(score) / 1000000
+            return String(format: "%.1f million", millions)
+        } else if score >= 1000 {
+            let thousands = Double(score) / 1000
+            return String(format: "%.1f thousand", thousands)
+        }
+        return "\(score)"
+    }
+    
+    // MARK: - Haptic Feedback
+    static func playHapticFeedback(_ type: UIImpactFeedbackGenerator.FeedbackStyle) {
+        guard UIAccessibility.isReduceMotionEnabled == false else { return }
+        
+        let impactGenerator = UIImpactFeedbackGenerator(style: type)
+        impactGenerator.impactOccurred()
+    }
+    
+    static func playNotificationHaptic(_ type: UINotificationFeedbackGenerator.FeedbackType) {
+        guard UIAccessibility.isReduceMotionEnabled == false else { return }
+        
+        let notificationGenerator = UINotificationFeedbackGenerator()
+        notificationGenerator.notificationOccurred(type)
+    }
+    
+    // MARK: - Reduce Motion Support
+    static func animationDuration(_ defaultDuration: Double) -> Double {
+        return UIAccessibility.isReduceMotionEnabled ? 0.0 : defaultDuration
+    }
+    
+    static func animation<V>(_ animation: Animation, value: V) -> Animation? where V : Equatable {
+        return UIAccessibility.isReduceMotionEnabled ? nil : animation
+    }
+    
+    // MARK: - Voice Control Support
+    static func voiceControlLabel(for action: String, context: String = "") -> String {
+        let baseLabel = action.lowercased().replacingOccurrences(of: " ", with: "")
+        return context.isEmpty ? baseLabel : "\(baseLabel)\(context)"
+    }
+}
+
+// MARK: - Accessibility View Modifiers
+extension View {
+    func accessibleButton(label: String, hint: String? = nil, traits: AccessibilityTraits = []) -> some View {
+        self
+            .accessibilityLabel(label)
+            .accessibilityHint(hint ?? "")
+            .accessibilityTraits(.button)
+            .accessibilityTraits(traits)
+    }
+    
+    func accessibleScore(_ score: Int, isHighScore: Bool = false) -> some View {
+        self
+            .accessibilityLabel(AccessibilityHelper.scoreAnnouncement(score, isHighScore: isHighScore))
+            .accessibilityTraits(.updatesFrequently)
+    }
+    
+    func accessibleTimer(_ timeRemaining: TimeInterval) -> some View {
+        let minutes = Int(timeRemaining) / 60
+        let seconds = Int(timeRemaining) % 60
+        let announcement = minutes > 0 ? 
+            "\(minutes) minutes, \(seconds) seconds remaining" : 
+            "\(seconds) seconds remaining"
+        
+        return self
+            .accessibilityLabel(announcement)
+            .accessibilityTraits(.updatesFrequently)
+    }
+    
+    func accessibleProgress(_ current: Int, total: Int, description: String) -> some View {
+        let percentage = total > 0 ? Int((Double(current) / Double(total)) * 100) : 0
+        let announcement = "\(description): \(current) of \(total), \(percentage) percent complete"
+        
+        return self
+            .accessibilityLabel(announcement)
+            .accessibilityValue("\(percentage) percent")
+            .accessibilityTraits(.updatesFrequently)
+    }
+    
+    func reduceMotionSensitive() -> some View {
+        self
+            .animation(
+                UIAccessibility.isReduceMotionEnabled ? .none : .default,
+                value: UUID()
+            )
+    }
+    
+    func hapticFeedback(style: UIImpactFeedbackGenerator.FeedbackStyle = .medium) -> some View {
+        self
+            .onTapGesture {
+                AccessibilityHelper.playHapticFeedback(style)
+            }
+    }
+}
+
+// MARK: - Accessibility-Aware Custom Views
+struct AccessibleProgressView: View {
+    let value: Double
+    let total: Double
+    let label: String
+    
+    var body: some View {
+        ProgressView(value: value, total: total)
+            .accessibilityLabel(label)
+            .accessibilityValue("\(Int((value / total) * 100)) percent")
+            .accessibilityTraits(.updatesFrequently)
+    }
+}
+
+struct AccessibleButton: View {
+    let title: String
+    let systemImage: String?
+    let action: () -> Void
+    let isEnabled: Bool
+    let accessibilityHint: String?
+    
+    init(
+        _ title: String,
+        systemImage: String? = nil,
+        isEnabled: Bool = true,
+        accessibilityHint: String? = nil,
+        action: @escaping () -> Void
+    ) {
+        self.title = title
+        self.systemImage = systemImage
+        self.isEnabled = isEnabled
+        self.accessibilityHint = accessibilityHint
+        self.action = action
+    }
+    
+    var body: some View {
+        Button(action: {
+            AccessibilityHelper.playHapticFeedback(.light)
+            action()
+        }) {
+            HStack(spacing: 8) {
+                if let systemImage = systemImage {
+                    Image(systemName: systemImage)
+                        .accessibilityHidden(true)
+                }
+                Text(title)
+            }
+        }
+        .disabled(!isEnabled)
+        .accessibilityLabel(title)
+        .accessibilityHint(accessibilityHint ?? "")
+        .accessibilityTraits(.button)
+        .accessibilityTraits(isEnabled ? [] : .notEnabled)
+    }
+}
+
+struct AccessibleCard<Content: View>: View {
+    let title: String
+    let description: String?
+    let content: Content
+    let action: (() -> Void)?
+    
+    init(
+        title: String,
+        description: String? = nil,
+        action: (() -> Void)? = nil,
+        @ViewBuilder content: () -> Content
+    ) {
+        self.title = title
+        self.description = description
+        self.action = action
+        self.content = content()
+    }
+    
+    var body: some View {
+        Group {
+            if let action = action {
+                Button(action: {
+                    AccessibilityHelper.playHapticFeedback(.light)
+                    action()
+                }) {
+                    cardContent
+                }
+                .accessibilityLabel(accessibilityLabel)
+                .accessibilityTraits(.button)
+            } else {
+                cardContent
+                    .accessibilityLabel(accessibilityLabel)
+            }
+        }
+    }
+    
+    private var cardContent: some View {
+        content
+    }
+    
+    private var accessibilityLabel: String {
+        if let description = description {
+            return "\(title). \(description)"
+        }
+        return title
+    }
+}
+
+// MARK: - Color Blindness Support
+extension Color {
+    // Provide alternative representations for common color blind types
+    func colorBlindFriendly(for type: ColorBlindnessType = .none) -> Color {
+        switch type {
+        case .none:
+            return self
+        case .protanopia, .deuteranopia:
+            // Red-green color blindness
+            if self == Color(hex: "28a809") { // Green
+                return Color.blue // Use blue instead
+            } else if self == Color(hex: "e6053a") { // Red
+                return Color.orange // Use orange instead
+            }
+            return self
+        case .tritanopia:
+            // Blue-yellow color blindness
+            if self == Color.blue {
+                return Color(hex: "28a809") // Use green instead
+            } else if self == Color.yellow {
+                return Color(hex: "e6053a") // Use red instead
+            }
+            return self
+        }
+    }
+}
+
+enum ColorBlindnessType {
+    case none
+    case protanopia    // Red blind
+    case deuteranopia  // Green blind
+    case tritanopia    // Blue blind
+}
+
+// MARK: - Font Size Categories
+extension Font {
+    static func accessibleTitle() -> Font {
+        return Font.custom("System", size: UIFontMetrics.default.scaledValue(for: 28))
+            .weight(.bold)
+    }
+    
+    static func accessibleHeadline() -> Font {
+        return Font.custom("System", size: UIFontMetrics.default.scaledValue(for: 18))
+            .weight(.semibold)
+    }
+    
+    static func accessibleBody() -> Font {
+        return Font.custom("System", size: UIFontMetrics.default.scaledValue(for: 16))
+    }
+    
+    static func accessibleCaption() -> Font {
+        return Font.custom("System", size: UIFontMetrics.default.scaledValue(for: 12))
+    }
+}

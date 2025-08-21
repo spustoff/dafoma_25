@@ -1,0 +1,641 @@
+//
+//  OnboardingView.swift
+//  SportPulse Avi
+//
+//  Created by AI Assistant on 1/20/25.
+//
+
+import SwiftUI
+import Combine
+
+struct OnboardingView: View {
+    @StateObject private var viewModel = OnboardingViewModel()
+    @Binding var isPresented: Bool
+    
+    var body: some View {
+        ZStack {
+            // Background gradient
+            LinearGradient(
+                colors: [
+                    Color(hex: "0e0e0e"),
+                    Color(hex: "1a1a1a"),
+                    Color(hex: "0e0e0e")
+                ],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+            .ignoresSafeArea()
+            
+            VStack(spacing: 0) {
+                // Progress Bar
+                progressBar
+                
+                // Content
+                TabView(selection: $viewModel.currentStep) {
+                    ForEach(OnboardingViewModel.OnboardingStep.allCases, id: \.self) { step in
+                        contentView(for: step)
+                            .tag(step)
+                    }
+                }
+                .tabViewStyle(.page(indexDisplayMode: .never))
+                .animation(viewModel.getStepAnimation(), value: viewModel.currentStep)
+                
+                // Navigation Controls
+                navigationControls
+            }
+        }
+        .preferredColorScheme(.dark)
+        .alert("Permission Request", isPresented: $viewModel.showingPermissionAlert) {
+            permissionAlertButtons
+        } message: {
+            permissionAlertMessage
+        }
+        .onReceive(viewModel.$isCompleted) { completed in
+            if completed {
+                withAnimation(.spring(response: 0.6, dampingFraction: 0.8)) {
+                    isPresented = false
+                }
+            }
+        }
+    }
+    
+    // MARK: - Progress Bar
+    private var progressBar: some View {
+        VStack(spacing: 16) {
+            HStack {
+                Text("Step \(viewModel.currentStep.rawValue) of 5")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                
+                Spacer()
+                
+                Button("Skip") {
+                    viewModel.skipToEnd()
+                }
+                .font(.caption)
+                .foregroundColor(Color(hex: "28a809"))
+            }
+            .padding(.horizontal, 24)
+            
+            ProgressView(value: viewModel.progress)
+                .progressViewStyle(FuturisticProgressViewStyle())
+                .padding(.horizontal, 24)
+        }
+        .padding(.top, 8)
+    }
+    
+    // MARK: - Content Views
+    @ViewBuilder
+    private func contentView(for step: OnboardingViewModel.OnboardingStep) -> some View {
+        switch step {
+        case .welcome:
+            welcomeView
+        case .tutorial:
+            tutorialView
+        case .personalization:
+            personalizationView
+        case .skillSelection:
+            skillSelectionView
+        case .permissions:
+            permissionsView
+        case .completed:
+            completedView
+        }
+    }
+    
+    private var welcomeView: some View {
+        VStack(spacing: 32) {
+            Spacer()
+            
+            // App Icon/Logo
+            ZStack {
+                Circle()
+                    .fill(
+                        LinearGradient(
+                            colors: [Color(hex: "28a809"), Color(hex: "e6053a")],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
+                    )
+                    .frame(width: 120, height: 120)
+                
+                Image(systemName: "sportscourt.fill")
+                    .font(.system(size: 60, weight: .bold))
+                    .foregroundColor(.white)
+            }
+            .scaleEffect(1.0)
+            .animation(.easeInOut(duration: 2.0).repeatForever(autoreverses: true), value: UUID())
+            
+            VStack(spacing: 16) {
+                Text("SportPulse Avi")
+                    .font(.system(size: 36, weight: .bold, design: .rounded))
+                    .foregroundColor(.white)
+                
+                Text("Get ready for an immersive sports gaming experience")
+                    .font(.title3)
+                    .foregroundColor(.secondary)
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal, 32)
+            }
+            
+            Spacer()
+            
+            // Features Preview
+            HStack(spacing: 24) {
+                featureIcon("gamecontroller.fill", "Unique\nGameplay")
+                featureIcon("arkit", "AR\nChallenges")
+                featureIcon("chart.line.uptrend.xyaxis", "Real-time\nScoring")
+                featureIcon("person.2.fill", "Social\nFeatures")
+            }
+            .padding(.horizontal, 32)
+            
+            Spacer()
+        }
+        .padding(24)
+        .accessibilityLabel(viewModel.getAccessibilityLabel(for: .welcome))
+    }
+    
+    private func featureIcon(_ systemName: String, _ title: String) -> some View {
+        VStack(spacing: 8) {
+            Image(systemName: systemName)
+                .font(.title2)
+                .foregroundColor(Color(hex: "28a809"))
+                .frame(height: 30)
+            
+            Text(title)
+                .font(.caption)
+                .foregroundColor(.secondary)
+                .multilineTextAlignment(.center)
+        }
+    }
+    
+    private var tutorialView: some View {
+        VStack(spacing: 24) {
+            // Header
+            VStack(spacing: 8) {
+                Text("How to Play")
+                    .font(.largeTitle.bold())
+                    .foregroundColor(.white)
+                
+                Text("Learn the core gameplay mechanics")
+                    .font(.title3)
+                    .foregroundColor(.secondary)
+            }
+            .padding(.top, 32)
+            
+            // Tutorial Steps
+            TabView(selection: $viewModel.currentTutorialStep) {
+                ForEach(0..<viewModel.tutorialSteps.count, id: \.self) { index in
+                    tutorialStepView(viewModel.tutorialSteps[index])
+                        .tag(index)
+                }
+            }
+            .tabViewStyle(.page(indexDisplayMode: .automatic))
+            .frame(maxHeight: 400)
+            .animation(viewModel.getTutorialAnimation(), value: viewModel.currentTutorialStep)
+            
+            // Tutorial Navigation
+            HStack(spacing: 16) {
+                Button("Previous") {
+                    viewModel.previousTutorialStep()
+                }
+                .buttonStyle(SecondaryButtonStyle())
+                .disabled(viewModel.currentTutorialStep == 0)
+                
+                Spacer()
+                
+                Button("Next") {
+                    viewModel.nextTutorialStep()
+                }
+                .buttonStyle(PrimaryButtonStyle())
+            }
+            .padding(.horizontal, 24)
+            .padding(.bottom, 32)
+        }
+    }
+    
+    private func tutorialStepView(_ step: OnboardingViewModel.TutorialStep) -> some View {
+        VStack(spacing: 24) {
+            // Icon
+            ZStack {
+                Circle()
+                    .fill(Color(hex: "28a809").opacity(0.2))
+                    .frame(width: 100, height: 100)
+                
+                Image(systemName: step.iconName)
+                    .font(.system(size: 40, weight: .medium))
+                    .foregroundColor(Color(hex: "28a809"))
+            }
+            
+            VStack(spacing: 12) {
+                Text(step.title)
+                    .font(.title2.bold())
+                    .foregroundColor(.white)
+                    .multilineTextAlignment(.center)
+                
+                Text(step.description)
+                    .font(.body)
+                    .foregroundColor(.secondary)
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal, 24)
+            }
+        }
+        .padding(24)
+    }
+    
+    private var personalizationView: some View {
+        VStack(spacing: 32) {
+            // Header
+            VStack(spacing: 8) {
+                Text("Create Your Profile")
+                    .font(.largeTitle.bold())
+                    .foregroundColor(.white)
+                
+                Text("Customize your gaming identity")
+                    .font(.title3)
+                    .foregroundColor(.secondary)
+            }
+            .padding(.top, 32)
+            
+            Spacer()
+            
+            // Avatar Selection
+            VStack(spacing: 16) {
+                Text("Choose Your Avatar")
+                    .font(.headline)
+                    .foregroundColor(.white)
+                
+                LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: 4), spacing: 16) {
+                    ForEach(viewModel.avatarOptions, id: \.self) { avatar in
+                        Button {
+                            viewModel.selectAvatar(avatar)
+                        } label: {
+                            Image(systemName: avatar)
+                                .font(.title)
+                                .foregroundColor(viewModel.selectedAvatar == avatar ? .white : .secondary)
+                                .frame(width: 60, height: 60)
+                                .background(
+                                    Circle()
+                                        .fill(viewModel.selectedAvatar == avatar ? 
+                                              Color(hex: "28a809") : Color.gray.opacity(0.3))
+                                )
+                        }
+                        .scaleEffect(viewModel.selectedAvatar == avatar ? 1.1 : 1.0)
+                        .animation(.spring(response: 0.3), value: viewModel.selectedAvatar)
+                    }
+                }
+            }
+            
+            // Username Input
+            VStack(spacing: 8) {
+                Text("Enter Your Username")
+                    .font(.headline)
+                    .foregroundColor(.white)
+                
+                TextField("Username", text: $viewModel.username)
+                    .textFieldStyle(FuturisticTextFieldStyle())
+                    .onChange(of: viewModel.username) { _, newValue in
+                        viewModel.updateUsername(newValue)
+                    }
+                
+                if let error = viewModel.validateUsername(viewModel.username) {
+                    Text(error)
+                        .font(.caption)
+                        .foregroundColor(Color(hex: "e6053a"))
+                }
+            }
+            
+            Spacer()
+        }
+        .padding(24)
+    }
+    
+    private var skillSelectionView: some View {
+        VStack(spacing: 32) {
+            // Header
+            VStack(spacing: 8) {
+                Text("Choose Your Level")
+                    .font(.largeTitle.bold())
+                    .foregroundColor(.white)
+                
+                Text("Select your preferred difficulty")
+                    .font(.title3)
+                    .foregroundColor(.secondary)
+            }
+            .padding(.top, 32)
+            
+            Spacer()
+            
+            // Skill Level Cards
+            VStack(spacing: 16) {
+                ForEach(SkillLevel.allCases, id: \.self) { skillLevel in
+                    skillLevelCard(skillLevel)
+                }
+            }
+            
+            Spacer()
+        }
+        .padding(24)
+    }
+    
+    private func skillLevelCard(_ skillLevel: SkillLevel) -> some View {
+        Button {
+            viewModel.selectSkillLevel(skillLevel)
+        } label: {
+            HStack(spacing: 16) {
+                // Difficulty Indicator
+                HStack(spacing: 4) {
+                    ForEach(1...4, id: \.self) { level in
+                        Circle()
+                            .fill(level <= Int(skillLevel.difficultyMultiplier * 2) ? 
+                                  Color(hex: "28a809") : Color.gray.opacity(0.3))
+                            .frame(width: 8, height: 8)
+                    }
+                }
+                
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(skillLevel.rawValue)
+                        .font(.headline.bold())
+                        .foregroundColor(.white)
+                    
+                    Text(skillLevel.description)
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+                
+                Spacer()
+                
+                // Selection Indicator
+                Image(systemName: viewModel.selectedSkillLevel == skillLevel ? 
+                      "checkmark.circle.fill" : "circle")
+                    .font(.title2)
+                    .foregroundColor(viewModel.selectedSkillLevel == skillLevel ? 
+                                   Color(hex: "28a809") : .secondary)
+            }
+            .padding(16)
+            .background(
+                RoundedRectangle(cornerRadius: 12)
+                    .fill(viewModel.selectedSkillLevel == skillLevel ? 
+                          Color(hex: "28a809").opacity(0.2) : Color.gray.opacity(0.1))
+                    .stroke(viewModel.selectedSkillLevel == skillLevel ? 
+                           Color(hex: "28a809") : Color.clear, lineWidth: 2)
+            )
+        }
+        .scaleEffect(viewModel.selectedSkillLevel == skillLevel ? 1.05 : 1.0)
+        .animation(.spring(response: 0.3), value: viewModel.selectedSkillLevel)
+    }
+    
+    private var permissionsView: some View {
+        VStack(spacing: 32) {
+            // Header
+            VStack(spacing: 8) {
+                Text("Enable Features")
+                    .font(.largeTitle.bold())
+                    .foregroundColor(.white)
+                
+                Text("Unlock AR challenges and social features")
+                    .font(.title3)
+                    .foregroundColor(.secondary)
+                    .multilineTextAlignment(.center)
+            }
+            .padding(.top, 32)
+            
+            Spacer()
+            
+            // Permission Cards
+            VStack(spacing: 16) {
+                ForEach(OnboardingViewModel.Permission.allCases, id: \.self) { permission in
+                    permissionCard(permission)
+                }
+            }
+            
+            Spacer()
+            
+            // Privacy Note
+            Text("Your privacy is important to us. These permissions are optional and only used to enhance your gaming experience.")
+                .font(.caption)
+                .foregroundColor(.secondary)
+                .multilineTextAlignment(.center)
+                .padding(.horizontal, 24)
+        }
+        .padding(24)
+    }
+    
+    private func permissionCard(_ permission: OnboardingViewModel.Permission) -> some View {
+        HStack(spacing: 16) {
+            // Icon
+            Image(systemName: permission.iconName)
+                .font(.title2)
+                .foregroundColor(Color(hex: "28a809"))
+                .frame(width: 30)
+            
+            VStack(alignment: .leading, spacing: 4) {
+                HStack {
+                    Text(permission.rawValue)
+                        .font(.headline)
+                        .foregroundColor(.white)
+                    
+                    if permission.isRequired {
+                        Text("Required")
+                            .font(.caption)
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 2)
+                            .background(Color(hex: "e6053a"))
+                            .foregroundColor(.white)
+                            .clipShape(Capsule())
+                    }
+                }
+                
+                Text(permission.description)
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            }
+            
+            Spacer()
+            
+            // Enable Button
+            Button {
+                viewModel.requestPermission(permission)
+            } label: {
+                Text(viewModel.permissionsGranted[permission] == true ? "Granted" : "Enable")
+                    .font(.caption.bold())
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 6)
+                    .background(viewModel.permissionsGranted[permission] == true ? 
+                              Color(hex: "28a809") : Color(hex: "d17305"))
+                    .foregroundColor(.white)
+                    .clipShape(Capsule())
+            }
+            .disabled(viewModel.permissionsGranted[permission] == true)
+        }
+        .padding(16)
+        .background(
+            RoundedRectangle(cornerRadius: 12)
+                .fill(Color.gray.opacity(0.1))
+        )
+        .accessibilityLabel(viewModel.getPermissionAccessibilityLabel(for: permission))
+    }
+    
+    private var completedView: some View {
+        VStack(spacing: 32) {
+            Spacer()
+            
+            // Success Animation
+            ZStack {
+                Circle()
+                    .fill(Color(hex: "28a809").opacity(0.2))
+                    .frame(width: 120, height: 120)
+                
+                Image(systemName: "checkmark.circle.fill")
+                    .font(.system(size: 60))
+                    .foregroundColor(Color(hex: "28a809"))
+            }
+            .scaleEffect(1.0)
+            .animation(.easeInOut(duration: 1.0).repeatForever(autoreverses: true), value: UUID())
+            
+            VStack(spacing: 16) {
+                Text("You're Ready!")
+                    .font(.largeTitle.bold())
+                    .foregroundColor(.white)
+                
+                Text("Let's start your sports adventure!")
+                    .font(.title3)
+                    .foregroundColor(.secondary)
+                    .multilineTextAlignment(.center)
+            }
+            
+            Spacer()
+            
+            Button("Start Playing") {
+                viewModel.complete()
+            }
+            .buttonStyle(PrimaryButtonStyle())
+            .padding(.horizontal, 24)
+        }
+        .padding(24)
+    }
+    
+    // MARK: - Navigation Controls
+    private var navigationControls: some View {
+        HStack(spacing: 16) {
+            if viewModel.currentStep != .welcome && viewModel.currentStep != .completed {
+                Button("Back") {
+                    viewModel.previousStep()
+                }
+                .buttonStyle(SecondaryButtonStyle())
+            }
+            
+            Spacer()
+            
+            if viewModel.currentStep != .completed {
+                Button("Continue") {
+                    viewModel.nextStep()
+                }
+                .buttonStyle(PrimaryButtonStyle())
+                .disabled(!viewModel.canProceed)
+            }
+        }
+        .padding(.horizontal, 24)
+        .padding(.bottom, 32)
+    }
+    
+    // MARK: - Alert Components
+    private var permissionAlertButtons: some View {
+        Group {
+            Button("Not Now") {
+                viewModel.handlePermissionResponse(false)
+            }
+            
+            Button("Allow") {
+                viewModel.handlePermissionResponse(true)
+            }
+        }
+    }
+    
+    private var permissionAlertMessage: some View {
+        Group {
+            if let permission = viewModel.currentPermissionRequest {
+                Text(permission.description)
+            }
+        }
+    }
+}
+
+// MARK: - Custom Styles
+struct FuturisticProgressViewStyle: ProgressViewStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        ZStack(alignment: .leading) {
+            RoundedRectangle(cornerRadius: 4)
+                .fill(Color.gray.opacity(0.3))
+                .frame(height: 8)
+            
+            RoundedRectangle(cornerRadius: 4)
+                .fill(
+                    LinearGradient(
+                        colors: [Color(hex: "28a809"), Color(hex: "d17305")],
+                        startPoint: .leading,
+                        endPoint: .trailing
+                    )
+                )
+                .frame(width: (configuration.fractionCompleted ?? 0) * 300, height: 8)
+                .animation(.easeInOut(duration: 0.5), value: configuration.fractionCompleted)
+        }
+        .frame(maxWidth: 300)
+    }
+}
+
+struct FuturisticTextFieldStyle: TextFieldStyle {
+    func _body(configuration: TextField<Self._Label>) -> some View {
+        configuration
+            .padding(16)
+            .background(
+                RoundedRectangle(cornerRadius: 12)
+                    .fill(Color.gray.opacity(0.1))
+                    .stroke(Color(hex: "28a809").opacity(0.5), lineWidth: 1)
+            )
+            .foregroundColor(.white)
+            .font(.body)
+    }
+}
+
+struct PrimaryButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .font(.headline.bold())
+            .foregroundColor(.white)
+            .padding(.horizontal, 32)
+            .padding(.vertical, 16)
+            .background(
+                LinearGradient(
+                    colors: [Color(hex: "28a809"), Color(hex: "d17305")],
+                    startPoint: .leading,
+                    endPoint: .trailing
+                )
+            )
+            .clipShape(Capsule())
+            .scaleEffect(configuration.isPressed ? 0.95 : 1.0)
+            .animation(.easeInOut(duration: 0.1), value: configuration.isPressed)
+    }
+}
+
+struct SecondaryButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .font(.headline)
+            .foregroundColor(Color(hex: "28a809"))
+            .padding(.horizontal, 24)
+            .padding(.vertical, 12)
+            .background(
+                Capsule()
+                    .stroke(Color(hex: "28a809"), lineWidth: 2)
+            )
+            .scaleEffect(configuration.isPressed ? 0.95 : 1.0)
+            .animation(.easeInOut(duration: 0.1), value: configuration.isPressed)
+    }
+}
+
+
+
+#Preview {
+    OnboardingView(isPresented: .constant(true))
+}
