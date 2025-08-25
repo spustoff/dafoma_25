@@ -39,9 +39,18 @@ struct ContentView: View {
             if showOnboarding {
                 OnboardingView()
                     .environmentObject(gameViewModel)
+                    .environment(\.navigateToMainMenu) {
+                        withAnimation(.easeInOut(duration: 0.3)) {
+                            print("Navigating from onboarding to main menu")
+                            showOnboarding = false
+                            currentView = .mainMenu
+                        }
+                    }
                     .onDisappear {
-                        currentView = .mainMenu
-                        showOnboarding = false
+                        print("OnboardingView disappeared")
+                        if !showOnboarding {
+                            currentView = .mainMenu
+                        }
                     }
             } else {
                 switch currentView {
@@ -228,9 +237,22 @@ struct ContentView: View {
     // MARK: - Helper Methods
     private func checkOnboardingStatus() {
         let onboardingCompleted = dataService.isOnboardingCompleted()
-        showOnboarding = !onboardingCompleted
+        
+        // Force show onboarding if user profile is incomplete
+        let hasValidProfile = !gameViewModel.userProfile.username.isEmpty
+        
+        showOnboarding = !onboardingCompleted || !hasValidProfile
+        
         print("Onboarding completed: \(onboardingCompleted)")
+        print("Has valid profile: \(hasValidProfile)")
         print("Will show onboarding: \(showOnboarding)")
+        
+        // Ensure we start with the correct view
+        if showOnboarding {
+            currentView = .onboarding
+        } else {
+            currentView = .mainMenu
+        }
     }
 }
 

@@ -9,10 +9,12 @@ import SwiftUI
 
 struct OnboardingView: View {
     @EnvironmentObject var gameViewModel: GameViewModel
+    @Environment(\.navigateToMainMenu) var navigateToMainMenu
     @State private var currentPage = 0
     @State private var username = ""
     @State private var selectedSkillLevel = SkillLevel.beginner
     @State private var selectedAvatar = "person.circle.fill"
+    @State private var isFinishing = false
     
     private let pages = OnboardingPage.allPages
     
@@ -223,15 +225,30 @@ struct OnboardingView: View {
             Spacer()
             
             // Next/Finish Button
-            Button(currentPage == pages.count - 1 ? "Get Started!" : "Next") {
+            Button(action: {
+                print("Button tapped - currentPage: \(currentPage), pages.count: \(pages.count)")
                 if currentPage == pages.count - 1 {
                     finishOnboarding()
                 } else {
                     nextPage()
                 }
+            }) {
+                HStack {
+                    if isFinishing {
+                        ProgressView()
+                            .scaleEffect(0.8)
+                            .foregroundColor(.white)
+                    }
+                    Text(currentPage == pages.count - 1 ? (isFinishing ? "Setting up..." : "Get Started!") : "Next")
+                        .font(.headline.bold())
+                }
             }
             .buttonStyle(PrimaryButtonStyle())
-            .disabled(isNextButtonDisabled)
+            .disabled(isNextButtonDisabled || isFinishing)
+            .opacity(isFinishing ? 0.8 : 1.0)
+            .accessibilityLabel(currentPage == pages.count - 1 ? "Get Started" : "Next")
+            .accessibilityHint(currentPage == pages.count - 1 ? "Complete onboarding and start using the app" : "Go to next onboarding step")
+            .accessibilityAddTraits(isFinishing ? [.updatesFrequently] : [])
         }
         .padding(.horizontal, 32)
         .padding(.bottom, 50)
@@ -263,19 +280,43 @@ struct OnboardingView: View {
     }
     
     private func finishOnboarding() {
+        print("finishOnboarding() called")
+        
+        // Prevent multiple taps
+        guard !isFinishing else { return }
+        isFinishing = true
+        
+        // Add haptic feedback
+        let impactFeedback = UIImpactFeedbackGenerator(style: .medium)
+        impactFeedback.impactOccurred()
+        
         // Save user preferences
-        gameViewModel.userProfile.username = username
+        gameViewModel.userProfile.username = username.isEmpty ? "Player" : username
         gameViewModel.userProfile.avatar = selectedAvatar
         gameViewModel.userProfile.preferences.preferredSkillLevel = selectedSkillLevel
         
-        gameViewModel.saveUserProfile()
+        // Save profile asynchronously
+        Task {
+            do {
+                try await gameViewModel.saveUserProfileAsync()
+                print("User profile saved successfully")
+            } catch {
+                print("Failed to save user profile: \(error)")
+            }
+        }
         
         // Mark onboarding as completed
         let dataService = DataService()
         dataService.markOnboardingCompleted()
+        print("Onboarding marked as completed")
         
-        // Navigate to main game
-        gameViewModel.gameSession.currentState = .menu
+        // Navigate to main game with delay to ensure state is saved
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+            print("Navigating to main menu")
+            self.gameViewModel.gameSession.currentState = .menu
+            self.navigateToMainMenu()
+            self.isFinishing = false
+        }
     }
 }
 

@@ -72,6 +72,10 @@ class GameViewModel: ObservableObject {
         }
     }
     
+    func saveUserProfileAsync() async throws {
+        try await dataService.saveUserProfile(userProfile)
+    }
+    
     func updateUsername(_ username: String) {
         userProfile.username = username
         saveUserProfile()
