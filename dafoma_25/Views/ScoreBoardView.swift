@@ -396,6 +396,10 @@ struct ScoreBoardView: View {
 
 
 
+
+
+
+
 #Preview {
     ScoreBoardView()
         .environmentObject(GameViewModel())

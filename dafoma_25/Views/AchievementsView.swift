@@ -330,6 +330,8 @@ struct AchievementProgressStyle: ProgressViewStyle {
     }
 }
 
+
+
 #Preview {
     AchievementsView()
         .environmentObject(GameViewModel())

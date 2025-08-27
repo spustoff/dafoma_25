@@ -373,6 +373,10 @@ struct OnboardingTextFieldStyle: TextFieldStyle {
     }
 }
 
+
+
+
+
 #Preview {
     OnboardingView()
         .environmentObject(GameViewModel())

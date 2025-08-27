@@ -253,12 +253,16 @@ class ARGameViewModel: NSObject, ObservableObject {
     private var targetEntities: [ModelEntity] = []
     
     var unavailabilityReason: String {
+        #if targetEnvironment(simulator)
+        return "AR features are not available in the iOS Simulator. Please test on a physical device with ARKit support."
+        #else
         if !isARSupported {
-            return "This device doesn't support AR features. AR challenges require a device with ARKit support."
+            return "This device doesn't support AR features. AR challenges require a device with ARKit support (iPhone 6s or newer, iPad Pro, iPad 5th gen or newer)."
         } else if !hasPermission {
             return "Camera permission is required for AR challenges. Please enable camera access in Settings."
         }
         return ""
+        #endif
     }
     
     override init() {
@@ -269,7 +273,12 @@ class ARGameViewModel: NSObject, ObservableObject {
     
     // MARK: - Setup
     private func checkARSupport() {
+        // Check if device supports AR and is not a simulator
+        #if targetEnvironment(simulator)
+        isARSupported = false
+        #else
         isARSupported = ARWorldTrackingConfiguration.isSupported
+        #endif
     }
     
     private func checkPermissions() {
@@ -299,24 +308,39 @@ class ARGameViewModel: NSObject, ObservableObject {
     func setupARView(_ arView: ARView) {
         self.arView = arView
         
-        // Configure AR session
+        // Configure AR session with basic configuration for better compatibility
         let configuration = ARWorldTrackingConfiguration()
-        configuration.planeDetection = [.horizontal, .vertical]
-        configuration.environmentTexturing = .automatic
         
-        if ARWorldTrackingConfiguration.supportsSceneReconstruction(.mesh) {
-            configuration.sceneReconstruction = .mesh
-        }
-        
-        arView.session.run(configuration)
-        arView.session.delegate = self
-        
-        // Add lighting
-        arView.environment.lighting.resource = try? EnvironmentResource.load(named: "studio")
-        
-        // Enable people occlusion if supported
-        if ARWorldTrackingConfiguration.supportsFrameSemantics(.personSegmentationWithDepth) {
-            configuration.frameSemantics.insert(.personSegmentationWithDepth)
+        // Only enable basic features for iOS 15.6+ compatibility
+        if ARWorldTrackingConfiguration.isSupported {
+            configuration.planeDetection = [.horizontal]
+            
+            // Only enable advanced features if available
+            if #available(iOS 16.0, *) {
+                configuration.environmentTexturing = .automatic
+                
+                if ARWorldTrackingConfiguration.supportsSceneReconstruction(.mesh) {
+                    configuration.sceneReconstruction = .mesh
+                }
+                
+                // Enable people occlusion if supported
+                if ARWorldTrackingConfiguration.supportsFrameSemantics(.personSegmentationWithDepth) {
+                    configuration.frameSemantics.insert(.personSegmentationWithDepth)
+                }
+            }
+            
+            arView.session.run(configuration, options: [.resetTracking, .removeExistingAnchors])
+            arView.session.delegate = self
+            
+            // Add basic lighting - don't fail if resource doesn't exist
+            do {
+                if #available(iOS 16.0, *) {
+                    arView.environment.lighting.resource = try EnvironmentResource.load(named: "studio")
+                }
+            } catch {
+                // Use default lighting if custom resource fails
+                print("Using default AR lighting")
+            }
         }
     }
     
@@ -492,6 +516,8 @@ extension ARGameViewModel: ARSessionDelegate {
         }
     }
 }
+
+
 
 #Preview {
     ARGameView()
