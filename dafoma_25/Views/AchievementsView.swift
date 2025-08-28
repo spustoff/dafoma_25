@@ -261,7 +261,7 @@ struct AchievementsView: View {
         case .special:
             return achievements.filter {
                 switch $0.unlockCondition {
-                case .perfectGame, .arChallengeCompleted, .socialShare:
+                case .perfectGame, .challengeCompleted, .socialShare:
                     return true
                 default:
                     return false

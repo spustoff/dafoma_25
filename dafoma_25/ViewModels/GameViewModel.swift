@@ -8,7 +8,6 @@
 import Foundation
 import SwiftUI
 import Combine
-import ARKit
 
 class GameViewModel: ObservableObject {
     @Published var gameSession = GameSession()
@@ -94,8 +93,7 @@ class GameViewModel: ObservableObject {
         
         for challengeType in ChallengeType.allCases {
             let baseDifficulty = Int(5 * skillMultiplier)
-            let timeLimit: TimeInterval? = challengeType == .arInteraction ? nil : 
-                TimeInterval(120 / skillMultiplier) // Shorter time for higher skill
+            let timeLimit: TimeInterval = TimeInterval(120 / skillMultiplier) // Shorter time for higher skill
             
             let challenge = GameChallenge(
                 type: challengeType,
@@ -136,21 +134,15 @@ class GameViewModel: ObservableObject {
         gameSession.endSession()
     }
     
-    // MARK: - AR Integration
+    // MARK: - AR Integration (Removed)
     private func checkARAvailability() {
-        gameSession.isARAvailable = ARWorldTrackingConfiguration.isSupported
+        // AR functionality has been removed for stability
+        gameSession.isARAvailable = false
     }
     
     func startARChallenge() {
-        guard gameSession.isARAvailable else {
-            showError("AR is not available on this device")
-            return
-        }
-        
-        if let arChallenge = availableChallenges.first(where: { $0.type == .arInteraction }) {
-            startChallenge(arChallenge)
-            gameSession.currentState = .arChallenge
-        }
+        // AR functionality has been removed for stability
+        showError("AR feature is currently unavailable")
     }
     
     // MARK: - Achievements
@@ -181,16 +173,16 @@ class GameViewModel: ObservableObject {
             ))
         }
         
-        // AR Challenge achievement
-        if gameSession.challengesCompleted.contains(where: { $0.type == .arInteraction }) && 
-           !hasAchievement("AR Pioneer") {
+        // Memory Master achievement
+        if gameSession.challengesCompleted.contains(where: { $0.type == .memoryGame }) && 
+           !hasAchievement("Memory Master") {
             newAchievements.append(Achievement(
-                title: "AR Pioneer",
-                description: "Complete your first AR challenge",
-                iconName: "arkit",
+                title: "Memory Master",
+                description: "Complete your first memory challenge",
+                iconName: "brain.head.profile",
                 points: 150,
                 isUnlocked: true,
-                unlockCondition: .arChallengeCompleted
+                unlockCondition: .challengeCompleted
             ))
         }
         

@@ -37,8 +37,15 @@ struct GameView: View {
                     ScoreBoardView()
                         .environmentObject(gameViewModel)
                 case .arChallenge:
-                    ARGameView()
-                        .environmentObject(gameViewModel)
+                    // AR functionality removed for stability
+                    VStack {
+                        Text("AR Feature Unavailable")
+                            .font(.title2.bold())
+                            .foregroundColor(.white)
+                        Text("This feature has been temporarily disabled")
+                            .font(.subheadline)
+                            .foregroundColor(.secondary)
+                    }
                 default:
                     mainMenuView
                 }
@@ -251,8 +258,7 @@ struct GameView: View {
             return "bolt.fill"
         case .memoryGame:
             return "brain.head.profile"
-        case .arInteraction:
-            return "arkit"
+        // AR interaction removed
         }
     }
     
@@ -338,9 +344,7 @@ struct GameView: View {
         case .memoryGame:
             MemoryGameView(challenge: challenge)
                 .environmentObject(gameViewModel)
-        case .arInteraction:
-            ARGameView()
-                .environmentObject(gameViewModel)
+        // AR interaction removed for stability
         }
     }
     

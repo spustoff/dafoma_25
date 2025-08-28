@@ -94,7 +94,7 @@ enum AchievementCondition: Codable {
     case scoreReached(Int)
     case gamesPlayed(Int)
     case perfectGame
-    case arChallengeCompleted
+    case challengeCompleted
     case socialShare
 }
 
@@ -104,7 +104,6 @@ enum ChallengeType: String, CaseIterable, Codable {
     case strategyPuzzle = "Strategy Puzzle"
     case reactionTest = "Reaction Test"
     case memoryGame = "Memory Game"
-    case arInteraction = "AR Interaction"
     
     var description: String {
         switch self {
@@ -116,8 +115,6 @@ enum ChallengeType: String, CaseIterable, Codable {
             return "Quick reflexes determine success"
         case .memoryGame:
             return "Remember patterns and sequences"
-        case .arInteraction:
-            return "Interactive augmented reality challenges"
         }
     }
     
@@ -127,7 +124,6 @@ enum ChallengeType: String, CaseIterable, Codable {
         case .strategyPuzzle: return 150
         case .reactionTest: return 80
         case .memoryGame: return 120
-        case .arInteraction: return 200
         }
     }
 }
